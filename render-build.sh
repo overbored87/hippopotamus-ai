@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e  # Exit on errors
 
 # Update package lists
 apt-get update
