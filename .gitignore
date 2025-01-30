@@ -1,0 +1,11 @@
+# Ignore environment files
+.env
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore VS Code settings
+.vscode/
+
+# Ignore Streamlit secrets
+.streamlit/secrets.toml
