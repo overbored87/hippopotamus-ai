@@ -1,5 +1,5 @@
 streamlit==1.24.0       # For the Streamlit web interface
-openai==1.28.1         # To interact with OpenAI's API
+openai==1.60.2         # To interact with OpenAI's API
 requests==2.31.0       # For HTTP requests (e.g., ElevenLabs API)
 pydub==0.25.1          # For audio playback
 speechrecognition==3.9.0  # For speech-to-text functionality
