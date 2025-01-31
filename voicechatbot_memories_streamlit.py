@@ -17,9 +17,6 @@ import speech_recognition as sr  # For recording and recognizing voice input
 from pydub import AudioSegment 
 from pydub.playback import play 
 
-import sounddevice as sd
-import numpy as np
-import scipy.io.wavfile as wav
 
 from dotenv import load_dotenv
 import os
@@ -130,13 +127,23 @@ def display_memory():
 
 ###########################################################################################
 # Function to record audio from the microphone and save it to a file
-def record_audio(output_file, duration=5, samplerate=44100):
-    print("Recording...")
-    audio_data = sd.rec(int(samplerate * duration), samplerate=samplerate, channels=1, dtype='int16')
-    sd.wait()  # Wait for the recording to finish
-    print("Recording complete.")
-    wav.write(output_file, samplerate, audio_data)
-    return output_file
+def record_audio():
+    
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        st.info("Recording...speak now!")
+        try:
+            # listen for speech with a timeout for silence
+            audio = recognizer.listen(source, timeout=3, phrase_time_limit = 20)
+            audio_file_path = "user_input.wav"
+            # Save the audio to a wave file 
+            with open(audio_file_path, "wb") as f:
+                f.write(audio.get_wav_data())
+            st.success("Recording complete. Processing audio...")
+            return audio_file_path
+        except sr.WaitTimeoutError:
+            st.error("No speech detected. Try again.")
+            return None 
 
 
 ###########################################################################################
