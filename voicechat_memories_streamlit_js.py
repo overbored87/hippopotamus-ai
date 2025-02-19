@@ -7,6 +7,8 @@ import os
 import json
 import base64
 from dotenv import load_dotenv
+from pydub import AudioSegment 
+
 
 load_dotenv()
 
@@ -148,6 +150,14 @@ if uploaded_audio:
     with open("user_input.webm", "wb") as f:
         f.write(uploaded_audio.read())
     st.success("Audio uploaded successfully. Processing...")
+    
+    
+    # Convert WebM to WAV
+    def convert_webm_to_wav(webm_path, wav_path):
+       audio = AudioSegment.from_file(webm_path, format="webm")
+       audio.export(wav_path, format="wav")
+
+    convert_webm_to_wav("user_input.webm", "user_input.wav")
 
     # Transcribe Audio with Whisper
     def transcribe_audio(audio_path):
@@ -160,7 +170,7 @@ if uploaded_audio:
             )
         return response
 
-    transcription = transcribe_audio("user_input.webm")
+    transcription = transcribe_audio("user_input.wav")
     st.write(f"📝 User: {transcription}")
 
     # Extract Information and Update Memory
