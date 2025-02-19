@@ -7,7 +7,6 @@ import os
 import json
 import base64
 from dotenv import load_dotenv
-from pydub import AudioSegment 
 
 load_dotenv()
 
@@ -118,8 +117,8 @@ function stopRecording() {
 
     mediaRecorder.stop();
     mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
-        const file = new File([audioBlob], "recorded_audio.wav", { type: "audio/wav" });
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const file = new File([audioBlob], "recorded_audio.webm", { type: "audio/webm" });
 
         // Auto-upload file into Streamlit file uploader
         let uploader = window.parent.document.querySelector("input[type='file']");
@@ -134,7 +133,7 @@ function stopRecording() {
 </script>
 
 <button onclick="startRecording()">🎙️ Start Recording</button>
-<button onclick="stopRecording()">🛑 Stop & Auto Upload</button>
+<button onclick="stopRecording()">🛑 Stop Recording</button>
 <p id="recording-status">Click "Start Recording" to begin.</p>
 """
 
@@ -143,10 +142,10 @@ components.html(audio_recorder_script, height=200)
 
 
 # Handle Uploaded Audio
-uploaded_audio = st.file_uploader("Upload Recorded Audio", type=["wav"])
+uploaded_audio = st.file_uploader("Upload Recorded Audio", type=["webm"])
 
 if uploaded_audio:
-    with open("user_input.wav", "wb") as f:
+    with open("user_input.webm", "wb") as f:
         f.write(uploaded_audio.read())
     st.success("Audio uploaded successfully. Processing...")
 
@@ -156,11 +155,12 @@ if uploaded_audio:
             response = client.audio.transcriptions.create(
                 model="whisper-1",
                 file=audio_file,
-                language="en"
+                language="en",
+                response_format="text"  # Force text output
             )
-        return response.text
+        return response
 
-    transcription = transcribe_audio("user_input.wav")
+    transcription = transcribe_audio("user_input.webm")
     st.write(f"📝 User: {transcription}")
 
     # Extract Information and Update Memory
