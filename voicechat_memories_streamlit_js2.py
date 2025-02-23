@@ -268,14 +268,14 @@ if uploaded_audio:
     def text_to_speech(text, voice_id="mbL34QDB5FptPamlgvX5"):
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         headers = {
-        "Content-Type": "application/json",
-        "xi-api-key": ELEVENLABS_API_KEY
+            "Content-Type": "application/json",
+            "xi-api-key": ELEVENLABS_API_KEY
         }
         payload = {
             "text": text,
             "voice_settings": {"stability": 0.8, "similarity_boost": 1.0}
         }
-
+    
         response = requests.post(url, json=payload, headers=headers)
         if response.status_code == 200:
             with open("response.mp3", "wb") as audio_file:
@@ -290,41 +290,78 @@ if uploaded_audio:
         with open(tts_audio_file, "rb") as audio_file:
             audio_bytes = audio_file.read()
             b64_audio = base64.b64encode(audio_bytes).decode()
-        
-            # Updated audio player with iOS compatibility
+            
             audio_html = f"""
-            <div id="audio-container">
-                <div id="audio-status" style="text-align: center; padding: 10px;">
-                    Tap anywhere to enable audio responses
+            <div id="audio-container" style="padding: 20px; text-align: center; border-radius: 10px; background: #f5f5f5; margin: 10px 0;">
+                <div id="audio-status" style="margin-bottom: 15px; font-size: 16px;">
+                    Tap the button below to play the audio response
                 </div>
-                <audio id="audio-player" style="display: none">
+                <audio id="audio-player">
                     <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
                 </audio>
+                <button id="play-button" 
+                        style="padding: 12px 24px; 
+                               background-color: #4CAF50; 
+                               color: white; 
+                               border: none; 
+                               border-radius: 5px; 
+                               font-size: 16px; 
+                               cursor: pointer;">
+                    Play Audio 🔊
+                </button>
             </div>
+    
             <script>
-            let audioEnabled = false;
-
-            document.addEventListener('touchstart', function() {{
-                if (!audioEnabled) {{
-                    audioEnabled = true;
-                    document.getElementById('audio-status').textContent = 'Audio responses enabled!';
-                    document.getElementById('audio-status').style.color = '#4CAF50';
-                    
-                    // Try to play the audio immediately
-                    const playPromise = player.play();
-                    if (playPromise !== undefined) {{
-                        playPromise.then(() => {{
-                            console.log('Audio playback started');
-                        }}).catch(error => {{
-                            console.error("Playback failed:", error);
-                            document.getElementById('audio-status').textContent = 'Tap to play audio manually';
-                        }});
+            document.addEventListener('DOMContentLoaded', function() {{
+                const audioPlayer = document.getElementById('audio-player');
+                const playButton = document.getElementById('play-button');
+                const statusDiv = document.getElementById('audio-status');
+                let isPlaying = false;
+    
+                // Initialize audio
+                audioPlayer.load();
+    
+                playButton.addEventListener('click', function() {{
+                    if (!isPlaying) {{
+                        // Try to play
+                        const playPromise = audioPlayer.play();
+                        
+                        if (playPromise !== undefined) {{
+                            playPromise.then(() => {{
+                                isPlaying = true;
+                                playButton.textContent = 'Pause ⏸️';
+                                statusDiv.textContent = 'Playing audio response...';
+                                console.log('Audio playback started');
+                            }}).catch(error => {{
+                                console.error('Playback failed:', error);
+                                statusDiv.textContent = 'Playback failed. Please try again.';
+                            }});
+                        }}
+                    }} else {{
+                        audioPlayer.pause();
+                        isPlaying = false;
+                        playButton.textContent = 'Play Audio 🔊';
+                        statusDiv.textContent = 'Audio paused. Tap to resume.';
                     }}
-                }}
-            }}, {{ once: true }});
+                }});
+    
+                // Handle audio ending
+                audioPlayer.addEventListener('ended', function() {{
+                    isPlaying = false;
+                    playButton.textContent = 'Play Again 🔄';
+                    statusDiv.textContent = 'Audio finished. Tap to replay.';
+                }});
+    
+                // Handle audio errors
+                audioPlayer.addEventListener('error', function(e) {{
+                    console.error('Audio error:', e);
+                    statusDiv.textContent = 'Error playing audio. Please try again.';
+                    playButton.textContent = 'Retry 🔄';
+                }});
+            }});
             </script>
-        """
-        components.html(audio_html, height=80)
+            """
+            components.html(audio_html, height=150)
 
 # Sidebar for Memory Display
 with st.sidebar:
