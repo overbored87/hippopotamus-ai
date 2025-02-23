@@ -268,8 +268,8 @@ if uploaded_audio:
     def text_to_speech(text, voice_id="mbL34QDB5FptPamlgvX5"):
         url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
         headers = {
-            "Content-Type": "application/json",
-            "xi-api-key": ELEVENLABS_API_KEY
+        "Content-Type": "application/json",
+        "xi-api-key": ELEVENLABS_API_KEY
         }
         payload = {
             "text": text,
@@ -287,21 +287,49 @@ if uploaded_audio:
 
     tts_audio_file = text_to_speech(bot_response)
     if tts_audio_file:
-        # Convert audio to base64 for embedding
         with open(tts_audio_file, "rb") as audio_file:
             audio_bytes = audio_file.read()
             b64_audio = base64.b64encode(audio_bytes).decode()
+        
+            # Updated audio player with iOS compatibility
             audio_html = f"""
-            <audio id='tts-audio' autoplay>
-                <source src='data:audio/mp3;base64,{b64_audio}' type='audio/mp3'>
-                Your browser does not support the audio element.
-            </audio>
+            <div id="audio-container">
+                <div id="audio-status" style="text-align: center; padding: 10px;">
+                    Tap anywhere to enable audio responses
+                </div>
+                <audio id="audio-player" style="display: none">
+                    <source src="data:audio/mp3;base64,{b64_audio}" type="audio/mp3">
+                </audio>
+            </div>
             <script>
-                var audio = document.getElementById('tts-audio');
-                audio.play();
+            let audioEnabled = false;
+
+            document.addEventListener('touchstart', function() {{
+                if (!audioEnabled) {{
+                    audioEnabled = true;
+                    document.getElementById('audio-status').textContent = 'Audio responses enabled!';
+                    document.getElementById('audio-status').style.color = '#4CAF50';
+                    
+                    // Set up auto-play for future responses
+                    const observer = new MutationObserver(() => {{
+                        const player = document.getElementById('audio-player');
+                        if (player && player.src) {{
+                            player.play().catch(err => {{
+                                console.error("Autoplay failed:", err);
+                                document.getElementById('audio-status').textContent = 'Tap to play audio manually';
+                            }});
+                        }}
+                    }});
+
+                    observer.observe(document.body, {{ 
+                        childList: true, 
+                        subtree: true 
+                    }});
+                }}
+            }}, {{ once: true }});
             </script>
-            """
-            components.html(audio_html)
+        """
+        components.html(audio_html, height=80)
 
 # Sidebar for Memory Display
 with st.sidebar:

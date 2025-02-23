@@ -94,50 +94,116 @@ def display_memory():
 # Improved JavaScript for Recording and Auto-Uploading Audio
 audio_recorder_script = """
 <script>
-let mediaRecorder;
+let mediaRecorder = null;
 let audioChunks = [];
-let isRecording = false;
+let recordingStream = null;
+
+async function requestMicrophonePermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        document.getElementById('status').textContent = 'Microphone access granted';
+        stream.getTracks().forEach(track => track.stop());
+        return true;
+    } catch (err) {
+        document.getElementById('status').textContent = 'Error: ' + err.message;
+        return false;
+    }
+}
 
 async function startRecording() {
-    if (isRecording) return; // Prevent multiple starts
-    isRecording = true;
+    try {
+        // Clear previous recordings
+        audioChunks = [];
+        
+        // Get audio stream
+        recordingStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true
+            }
+        });
 
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm; codecs=opus' });
-    mediaRecorder.start();
+        // Create recorder
+        mediaRecorder = new MediaRecorder(recordingStream);
 
-    audioChunks = [];
-    mediaRecorder.ondataavailable = event => {
-        audioChunks.push(event.data);
-    };
+        // Handle data
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                audioChunks.push(event.data);
+            }
+        };
 
-    document.getElementById("recording-status").innerText = "Recording... 🎙️";
+        // Start recording
+        mediaRecorder.start();
+        
+        // Update UI
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        document.getElementById('status').textContent = 'Recording...';
+        
+    } catch (err) {
+        document.getElementById('status').textContent = 'Start Error: ' + err.message;
+    }
 }
 
 function stopRecording() {
-    if (!isRecording) return;
-    isRecording = false;
+    if (!mediaRecorder) {
+        document.getElementById('status').textContent = 'No recording in progress';
+        return;
+    }
+
+    mediaRecorder.onstop = async () => {
+        try {
+            // Stop all tracks
+            if (recordingStream) {
+                recordingStream.getTracks().forEach(track => track.stop());
+            }
+
+            // Create blob
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const audioFile = new File([audioBlob], 'recording.webm', {
+                type: 'audio/webm'
+            });
+
+            // Find Streamlit's file uploader
+            const uploader = window.parent.document.querySelector('input[type="file"]');
+            if (uploader) {
+                const dt = new DataTransfer();
+                dt.items.add(audioFile);
+                uploader.files = dt.files;
+                uploader.dispatchEvent(new Event('change', { bubbles: true }));
+                document.getElementById('status').textContent = 'Recording uploaded';
+            } else {
+                document.getElementById('status').textContent = 'Error: Could not find uploader';
+            }
+        } catch (err) {
+            document.getElementById('status').textContent = 'Stop Error: ' + err.message;
+        }
+    };
 
     mediaRecorder.stop();
-    mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        const file = new File([audioBlob], "recorded_audio.webm", { type: "audio/webm" });
-
-        // Auto-upload file into Streamlit file uploader
-        let uploader = window.parent.document.querySelector("input[type='file']");
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        uploader.files = dataTransfer.files;
-        uploader.dispatchEvent(new Event("change", { bubbles: true }));
-
-        document.getElementById("recording-status").innerText = "Recording stopped. ✅";
-    };
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
 }
+
+// Request permission on page load
+window.onload = requestMicrophonePermission;
 </script>
 
-<button onclick="startRecording()">🎙️ Start Recording</button>
-<button onclick="stopRecording()">🛑 Stop Recording</button>
-<p id="recording-status">Click "Start Recording" to begin.</p>
+<div style="padding: 20px; text-align: center;">
+    <button id="startBtn" 
+            onclick="startRecording()" 
+            style="padding: 10px 20px; margin: 5px; background-color: #4CAF50; color: white; border: none; border-radius: 5px;">
+        Start Recording
+    </button>
+    <button id="stopBtn" 
+            onclick="stopRecording()" 
+            style="padding: 10px 20px; margin: 5px; background-color: #f44336; color: white; border: none; border-radius: 5px;"
+            disabled>
+        Stop Recording
+    </button>
+    <p id="status" style="margin-top: 10px;">Waiting for microphone permission...</p>
+</div>
 """
 
 # Inject the improved JavaScript into Streamlit
