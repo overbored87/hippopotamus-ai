@@ -310,21 +310,16 @@ if uploaded_audio:
                     document.getElementById('audio-status').textContent = 'Audio responses enabled!';
                     document.getElementById('audio-status').style.color = '#4CAF50';
                     
-                    // Set up auto-play for future responses
-                    const observer = new MutationObserver(() => {{
-                        const player = document.getElementById('audio-player');
-                        if (player && player.src) {{
-                            player.play().catch(err => {{
-                                console.error("Autoplay failed:", err);
-                                document.getElementById('audio-status').textContent = 'Tap to play audio manually';
-                            }});
-                        }}
-                    }});
-
-                    observer.observe(document.body, {{ 
-                        childList: true, 
-                        subtree: true 
-                    }});
+                    // Try to play the audio immediately
+                    const playPromise = player.play();
+                    if (playPromise !== undefined) {{
+                        playPromise.then(() => {{
+                            console.log('Audio playback started');
+                        }}).catch(error => {{
+                            console.error("Playback failed:", error);
+                            document.getElementById('audio-status').textContent = 'Tap to play audio manually';
+                        }});
+                    }}
                 }}
             }}, {{ once: true }});
             </script>
