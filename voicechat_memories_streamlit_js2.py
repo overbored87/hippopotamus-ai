@@ -94,197 +94,115 @@ def display_memory():
 # Improved JavaScript for Recording and Auto-Uploading Audio
 audio_recorder_script = """
 <script>
-// Debug logging function
-function debugLog(message) {
-    console.log(`[AudioRecorder] ${message}`);
-    const status = document.getElementById("recording-status");
-    if (status) {
-        status.innerText = message;
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStream = null;
+
+async function requestMicrophonePermission() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        document.getElementById('status').textContent = 'Microphone access granted';
+        stream.getTracks().forEach(track => track.stop());
+        return true;
+    } catch (err) {
+        document.getElementById('status').textContent = 'Error: ' + err.message;
+        return false;
     }
 }
 
-// Global variables
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-let stream = null;
-
-// Check if running on iOS
-function isiOS() {
-    return [
-        'iPad Simulator',
-        'iPhone Simulator',
-        'iPod Simulator',
-        'iPad',
-        'iPhone',
-        'iPod'
-    ].includes(navigator.platform)
-    || (navigator.userAgent.includes("Mac") && "ontouchend" in document);
-}
-
-// Get audio constraints based on platform
-function getAudioConstraints() {
-    return isiOS() ? {
-        audio: {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true
-        }
-    } : { audio: true };
-}
-
-// Initialize the audio recorder
-async function initializeRecorder() {
+async function startRecording() {
     try {
-        debugLog("Initializing recorder...");
+        // Clear previous recordings
+        audioChunks = [];
         
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error("MediaDevices API not supported");
-        }
-
-        stream = await navigator.mediaDevices.getUserMedia(getAudioConstraints());
-        debugLog("Got media stream");
-
-        const mimeType = 'audio/webm;codecs=opus';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-            debugLog("WebM not supported, falling back to default mime type");
-        }
-
-        mediaRecorder = new MediaRecorder(stream, {
-            mimeType: MediaRecorder.isTypeSupported(mimeType) ? mimeType : 'audio/webm'
+        // Get audio stream
+        recordingStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true
+            }
         });
 
+        // Create recorder
+        mediaRecorder = new MediaRecorder(recordingStream);
+
+        // Handle data
         mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
                 audioChunks.push(event.data);
             }
         };
 
-        debugLog("Recorder initialized successfully");
-        return true;
-    } catch (error) {
-        debugLog(`Initialization error: ${error.message}`);
-        return false;
+        // Start recording
+        mediaRecorder.start();
+        
+        // Update UI
+        document.getElementById('startBtn').disabled = true;
+        document.getElementById('stopBtn').disabled = false;
+        document.getElementById('status').textContent = 'Recording...';
+        
+    } catch (err) {
+        document.getElementById('status').textContent = 'Start Error: ' + err.message;
     }
 }
 
-// Start recording function
-async function startRecording() {
-    try {
-        debugLog("Start button clicked");
-        
-        if (isRecording) {
-            debugLog("Already recording");
-            return;
-        }
+function stopRecording() {
+    if (!mediaRecorder) {
+        document.getElementById('status').textContent = 'No recording in progress';
+        return;
+    }
 
-        if (!mediaRecorder) {
-            const initialized = await initializeRecorder();
-            if (!initialized) {
-                throw new Error("Failed to initialize recorder");
+    mediaRecorder.onstop = async () => {
+        try {
+            // Stop all tracks
+            if (recordingStream) {
+                recordingStream.getTracks().forEach(track => track.stop());
             }
-        }
 
-        audioChunks = [];
-        mediaRecorder.start(100);
-        isRecording = true;
-        debugLog("Recording started 🎙️");
-        
-        // Update UI
-        document.getElementById("start-button").disabled = true;
-        document.getElementById("stop-button").disabled = false;
-    } catch (error) {
-        debugLog(`Start recording error: ${error.message}`);
-    }
+            // Create blob
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const audioFile = new File([audioBlob], 'recording.webm', {
+                type: 'audio/webm'
+            });
+
+            // Find Streamlit's file uploader
+            const uploader = window.parent.document.querySelector('input[type="file"]');
+            if (uploader) {
+                const dt = new DataTransfer();
+                dt.items.add(audioFile);
+                uploader.files = dt.files;
+                uploader.dispatchEvent(new Event('change', { bubbles: true }));
+                document.getElementById('status').textContent = 'Recording uploaded';
+            } else {
+                document.getElementById('status').textContent = 'Error: Could not find uploader';
+            }
+        } catch (err) {
+            document.getElementById('status').textContent = 'Stop Error: ' + err.message;
+        }
+    };
+
+    mediaRecorder.stop();
+    document.getElementById('startBtn').disabled = false;
+    document.getElementById('stopBtn').disabled = true;
 }
 
-// Stop recording function
-async function stopRecording() {
-    try {
-        debugLog("Stop button clicked");
-        
-        if (!isRecording || !mediaRecorder) {
-            debugLog("Not recording or recorder not initialized");
-            return;
-        }
-
-        isRecording = false;
-        
-        // Update UI
-        document.getElementById("start-button").disabled = false;
-        document.getElementById("stop-button").disabled = true;
-
-        return new Promise((resolve) => {
-            mediaRecorder.onstop = async () => {
-                try {
-                    debugLog("Processing recording...");
-                    
-                    // Stop all tracks
-                    if (stream) {
-                        stream.getTracks().forEach(track => track.stop());
-                    }
-
-                    const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                    const file = new File([audioBlob], "recorded_audio.webm", {
-                        type: mediaRecorder.mimeType,
-                        lastModified: Date.now()
-                    });
-
-                    // Find uploader in Streamlit
-                    const uploader = window.parent.document.querySelector('input[type="file"]');
-                    if (!uploader) {
-                        throw new Error("File uploader not found");
-                    }
-
-                    // Upload file
-                    const dataTransfer = new DataTransfer();
-                    dataTransfer.items.add(file);
-                    uploader.files = dataTransfer.files;
-                    uploader.dispatchEvent(new Event('change', { bubbles: true }));
-
-                    debugLog("Recording processed and uploaded ✅");
-                    
-                    // Reset recorder
-                    mediaRecorder = null;
-                    stream = null;
-                    resolve();
-                } catch (error) {
-                    debugLog(`Error processing recording: ${error.message}`);
-                    resolve();
-                }
-            };
-
-            mediaRecorder.stop();
-        });
-    } catch (error) {
-        debugLog(`Stop recording error: ${error.message}`);
-    }
-}
-
-// Initialize on page load
-window.addEventListener('load', async () => {
-    debugLog("Page loaded, checking media permissions...");
-    await initializeRecorder();
-});
+// Request permission on page load
+window.onload = requestMicrophonePermission;
 </script>
 
-<div style="display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px;">
-    <div style="display: flex; gap: 10px;">
-        <button 
-            id="start-button"
-            onclick="startRecording()"
-            style="padding: 10px 20px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
-            🎙️ Start Recording
-        </button>
-        <button 
-            id="stop-button"
-            onclick="stopRecording()"
-            style="padding: 10px 20px; background-color: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer;"
+<div style="padding: 20px; text-align: center;">
+    <button id="startBtn" 
+            onclick="startRecording()" 
+            style="padding: 10px 20px; margin: 5px; background-color: #4CAF50; color: white; border: none; border-radius: 5px;">
+        Start Recording
+    </button>
+    <button id="stopBtn" 
+            onclick="stopRecording()" 
+            style="padding: 10px 20px; margin: 5px; background-color: #f44336; color: white; border: none; border-radius: 5px;"
             disabled>
-            🛑 Stop Recording
-        </button>
-    </div>
-    <p id="recording-status" style="margin-top: 10px; text-align: center;">Initializing audio recorder...</p>
+        Stop Recording
+    </button>
+    <p id="status" style="margin-top: 10px;">Waiting for microphone permission...</p>
 </div>
 """
 
